@@ -753,25 +753,14 @@ async function findDoctorAvailability() {
     }
 
     try {
-        let searchDoctors = doctors;
+        // Build query parameters to search from backend
+        let queryParams = new URLSearchParams();
+        if (doctorName) queryParams.append('name', doctorName);
+        if (location) queryParams.append('location', location);
+        if (specialty) queryParams.append('specialty', specialty);
         
-        if (specialty) {
-            searchDoctors = searchDoctors.filter(doc => 
-                doc.specialty.toLowerCase().includes(specialty.toLowerCase())
-            );
-        }
-        
-        if (doctorName) {
-            searchDoctors = searchDoctors.filter(doc => 
-                doc.name.toLowerCase().includes(doctorName.toLowerCase())
-            );
-        }
-        
-        if (location) {
-            searchDoctors = searchDoctors.filter(doc => 
-                doc.hospital.toLowerCase().includes(location.toLowerCase())
-            );
-        }
+        // Fetch doctors from backend with filters
+        const searchDoctors = await apiCall(`/doctors?${queryParams.toString()}`);
         
         displayDoctorSearchResults(searchDoctors, { doctorName, location, specialty, date });
         closeAllModals();
@@ -903,6 +892,8 @@ function displayDoctorSearchResults(doctorsList, searchCriteria) {
 
     doctorsList.forEach(doctor => {
         const photoUrl = doctor.photo ? doctor.photo : '/uploads/default-doctor.png';
+        const providerTypeLabel = doctor.providerType ? doctor.providerType.charAt(0).toUpperCase() + doctor.providerType.slice(1) : 'Healthcare Provider';
+        const providerIcon = doctor.providerType === 'hospital' ? 'fa-hospital' : (doctor.providerType === 'clinic' ? 'fa-clinic-medical' : 'fa-prescription-bottle-alt');
         html += `
             <div class="card">
                 <div class="card-img" style="background-image: url('${photoUrl}'); background-size: cover; background-position: center; height: 200px;">
@@ -912,17 +903,20 @@ function displayDoctorSearchResults(doctorsList, searchCriteria) {
                     <div class="card-header">
                         <div>
                             <div class="card-title">${doctor.name}</div>
-                            <div class="card-details">${doctor.specialty} · ${doctor.hospital}</div>
+                            <div class="card-details">${doctor.specialty}</div>
                         </div>
                         <div class="rating">⭐ ${doctor.rating || 4.5}</div>
                     </div>
                     <div class="card-details">
+                        <div><i class="fas ${providerIcon}"></i> <strong>${doctor.providerName || doctor.hospital}</strong> (${providerTypeLabel})</div>
+                        <div><i class="fas fa-map-marker-alt"></i> ${doctor.providerDistrict || 'N/A'}${doctor.providerState && doctor.providerState !== 'N/A' ? ', ' + doctor.providerState : ''}</div>
+                        ${doctor.providerAddress && doctor.providerAddress !== 'N/A' ? `<div><i class="fas fa-location-arrow"></i> ${doctor.providerAddress}</div>` : ''}
                         ${doctor.experience ? `<div><i class="fas fa-briefcase"></i> ${doctor.experience}</div>` : ''}
                         ${doctor.qualification ? `<div><i class="fas fa-graduation-cap"></i> ${doctor.qualification}</div>` : ''}
                     </div>
                     <div class="card-footer">
                         <div class="price">₹${doctor.consultationFee || doctor.fee || 500}</div>
-                        <button class="btn btn-primary" onclick="openDoctorAvailability('${doctor.id}')">
+                        <button class="btn btn-primary" onclick="openDoctorAvailability('${doctor.id || doctor._id}')">
                             <i class="fas fa-calendar-check"></i> Book Now
                         </button>
                     </div>
