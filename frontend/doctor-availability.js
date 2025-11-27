@@ -86,7 +86,42 @@ async function initializeDoctorAvailability() {
         setTimeout(() => {
             document.getElementById('doctorName').textContent = currentDoctor.name;
             document.getElementById('doctorSpecialty').textContent = currentDoctor.specialty;
-            document.getElementById('doctorHospital').textContent = currentDoctor.hospital;
+            
+            // Update provider info
+            const providerName = currentDoctor.providerName || currentDoctor.hospital || 'Healthcare Provider';
+            const providerType = currentDoctor.providerType || 'healthcare';
+            const providerTypeLabel = providerType.charAt(0).toUpperCase() + providerType.slice(1);
+            const providerDistrict = currentDoctor.providerDistrict || 'N/A';
+            const providerState = currentDoctor.providerState || '';
+            const providerAddress = currentDoctor.providerAddress || 'N/A';
+            
+            // Set provider name and type
+            document.getElementById('providerName').textContent = providerName;
+            document.getElementById('providerType').textContent = ` (${providerTypeLabel})`;
+            
+            // Set provider icon based on type
+            const providerIconEl = document.getElementById('providerIcon');
+            if (providerType === 'hospital') {
+                providerIconEl.className = 'fas fa-hospital';
+            } else if (providerType === 'clinic') {
+                providerIconEl.className = 'fas fa-clinic-medical';
+            } else {
+                providerIconEl.className = 'fas fa-prescription-bottle-alt';
+            }
+            
+            // Set location with district and state
+            const locationText = providerState && providerState !== 'N/A' ? 
+                `${providerDistrict}, ${providerState}` : providerDistrict;
+            document.getElementById('providerDistrict').textContent = locationText;
+            
+            // Set address
+            document.getElementById('providerAddress').textContent = providerAddress;
+            
+            // Hide address section if not available
+            if (providerAddress === 'N/A' || !providerAddress) {
+                document.getElementById('doctorAddress').style.display = 'none';
+            }
+            
             document.getElementById('doctorRating').textContent = currentDoctor.rating || '4.5';
             
             // Add entrance animation
