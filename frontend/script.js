@@ -1,5 +1,5 @@
 // API Base URL - Use relative path for same origin
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = '/api';
 
 // Global State
 let currentUser = null;
@@ -391,7 +391,7 @@ function renderDoctors(doctorsList) {
 function createDoctorCard(doctor) {
     const card = document.createElement('div');
     card.className = 'card';
-    const photoUrl = doctor.photo ? 'http://localhost:5000' + doctor.photo : 'http://localhost:5000/uploads/default-doctor.png';
+    const photoUrl = doctor.photo ? doctor.photo : '/uploads/default-doctor.png';
     const availableSlots = doctor.availableSlots || [];
     const slotDisplay = Array.isArray(availableSlots) && availableSlots.length > 0 
         ? availableSlots.slice(0, 3).map(slot => {
@@ -902,7 +902,7 @@ function displayDoctorSearchResults(doctorsList, searchCriteria) {
     `;
 
     doctorsList.forEach(doctor => {
-        const photoUrl = doctor.photo ? 'http://localhost:5000' + doctor.photo : 'http://localhost:5000/uploads/default-doctor.png';
+        const photoUrl = doctor.photo ? doctor.photo : '/uploads/default-doctor.png';
         html += `
             <div class="card">
                 <div class="card-img" style="background-image: url('${photoUrl}'); background-size: cover; background-position: center; height: 200px;">

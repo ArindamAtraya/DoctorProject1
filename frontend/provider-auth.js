@@ -406,7 +406,7 @@ class ProviderAuth {
                 headers['Authorization'] = `Bearer ${token}`;
             }
 
-            const url = `http://localhost:5000/api${endpoint}`;
+            const url = `/api${endpoint}`;
             console.log('📤 API Call:', url);
             
             const response = await fetch(url, {

@@ -1,5 +1,5 @@
 // Doctor Availability JavaScript - Enhanced with Mobile Support
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = '/api';
 let currentDate = new Date();
 let selectedDate = new Date();
 let selectedTimeSlot = null;

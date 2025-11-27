@@ -1,4 +1,4 @@
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = '/api';
 
 let currentProvider = null;
 let currentDoctors = [];
@@ -122,7 +122,7 @@ function displayDoctors() {
 
     doctorsDiv.innerHTML = currentDoctors.map(doctor => `
         <div class="doctor-card">
-            <img src="${doctor.photo ? 'http://localhost:5000' + doctor.photo : 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22200%22%3E%3Crect fill=%22%23e0e7ff%22 width=%22200%22 height=%22200%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2224%22 fill=%22%236366f1%22 text-anchor=%22middle%22 dy=%22.3em%22%3EDr.%3C/text%3E%3C/svg%3E'}" 
+            <img src="${doctor.photo ? doctor.photo : 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22200%22%3E%3Crect fill=%22%23e0e7ff%22 width=%22200%22 height=%22200%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2224%22 fill=%22%236366f1%22 text-anchor=%22middle%22 dy=%22.3em%22%3EDr.%3C/text%3E%3C/svg%3E'}" 
                  alt="${doctor.name}" 
                  class="doctor-photo"
                  onerror="this.style.backgroundColor='#e0e7ff'; this.style.color='#6366f1'; this.innerHTML='<div style=&quot;display:flex;align-items:center;justify-content:center;height:100%;font-size:24px;&quot;>Dr</div>'"
@@ -407,7 +407,7 @@ async function editDoctor(doctorId) {
 
     if (doctor.photo) {
         const preview = document.getElementById('photoPreview');
-        preview.src = doctor.photo ? 'http://localhost:5000' + doctor.photo : '';
+        preview.src = doctor.photo || '';
         preview.style.display = 'block';
     }
 
