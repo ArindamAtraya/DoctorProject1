@@ -257,12 +257,16 @@ app.get('/api/auth/verify', authenticateToken, async (req, res) => {
 
 app.get('/api/doctors', async (req, res) => {
     try {
-        const { specialty, search } = req.query;
+        const { specialty, search, location, name } = req.query;
         
         let query = {};
 
         if (specialty) {
             query.specialty = new RegExp(specialty, 'i');
+        }
+
+        if (name) {
+            query.name = new RegExp(name, 'i');
         }
 
         if (search) {
@@ -272,10 +276,26 @@ app.get('/api/doctors', async (req, res) => {
             ];
         }
 
-        const doctors = await Doctor.find(query).populate('providerId');
+        let doctors = await Doctor.find(query).populate('providerId');
+        
+        if (location) {
+            doctors = doctors.filter(doctor => {
+                if (!doctor.providerId) return false;
+                const locationLower = location.toLowerCase();
+                const district = (doctor.providerId.district || '').toLowerCase();
+                const state = (doctor.providerId.state || '').toLowerCase();
+                const address = (doctor.providerId.address || '').toLowerCase();
+                const providerName = (doctor.providerId.name || '').toLowerCase();
+                return district.includes(locationLower) || 
+                       state.includes(locationLower) || 
+                       address.includes(locationLower) ||
+                       providerName.includes(locationLower);
+            });
+        }
         
         const formattedDoctors = doctors.map(doctor => ({
             id: doctor._id,
+            _id: doctor._id,
             name: doctor.name,
             photo: doctor.photo || '/uploads/default-doctor.png',
             specialty: doctor.specialty,
@@ -289,9 +309,12 @@ app.get('/api/doctors', async (req, res) => {
             slotsPerDay: doctor.slotsPerDay,
             about: doctor.about,
             hospital: doctor.providerId ? doctor.providerId.name : 'N/A',
+            providerName: doctor.providerId ? doctor.providerId.name : 'N/A',
             providerId: doctor.providerId ? doctor.providerId._id : null,
             providerType: doctor.providerId ? doctor.providerId.type : null,
             providerDistrict: doctor.providerId ? doctor.providerId.district : 'N/A',
+            providerState: doctor.providerId ? doctor.providerId.state : 'N/A',
+            providerAddress: doctor.providerId ? doctor.providerId.address : 'N/A',
             rating: doctor.providerId ? doctor.providerId.rating : 4.5,
             reviews: doctor.providerId ? doctor.providerId.totalReviews : 0,
             availability: 'Available'
@@ -353,6 +376,7 @@ app.get('/api/doctors/:id', async (req, res) => {
 
         res.json({
             id: doctor._id,
+            _id: doctor._id,
             name: doctor.name,
             photo: doctor.photo || '/uploads/default-doctor.png',
             specialty: doctor.specialty,
@@ -365,7 +389,12 @@ app.get('/api/doctors/:id', async (req, res) => {
             slotsPerDay: doctor.slotsPerDay,
             about: doctor.about,
             hospital: doctor.providerId ? doctor.providerId.name : 'N/A',
+            providerName: doctor.providerId ? doctor.providerId.name : 'N/A',
             providerId: doctor.providerId ? doctor.providerId._id : null,
+            providerType: doctor.providerId ? doctor.providerId.type : null,
+            providerDistrict: doctor.providerId ? doctor.providerId.district : 'N/A',
+            providerState: doctor.providerId ? doctor.providerId.state : 'N/A',
+            providerAddress: doctor.providerId ? doctor.providerId.address : 'N/A',
             rating: doctor.providerId ? doctor.providerId.rating : 4.5
         });
     } catch (error) {
