@@ -122,7 +122,7 @@ function displayDoctors() {
 
     doctorsDiv.innerHTML = currentDoctors.map(doctor => `
         <div class="doctor-card">
-            <img src="${doctor.photo ? 'http://localhost:5000' + doctor.photo : 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22200%22%3E%3Crect fill=%22%23e0e7ff%22 width=%22200%22 height=%22200%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2224%22 fill=%22%236366f1%22 text-anchor=%22middle%22 dy=%22.3em%22%3EDr.%3C/text%3E%3C/svg%3E'}" 
+            <img src="${doctor.photo ? doctor.photo : 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22200%22%3E%3Crect fill=%22%23e0e7ff%22 width=%22200%22 height=%22200%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2224%22 fill=%22%236366f1%22 text-anchor=%22middle%22 dy=%22.3em%22%3EDr.%3C/text%3E%3C/svg%3E'}" 
                  alt="${doctor.name}" 
                  class="doctor-photo"
                  onerror="this.style.backgroundColor='#e0e7ff'; this.style.color='#6366f1'; this.innerHTML='<div style=&quot;display:flex;align-items:center;justify-content:center;height:100%;font-size:24px;&quot;>Dr</div>'"
@@ -245,35 +245,65 @@ async function loadStats() {
     document.getElementById('totalRevenue').textContent = `₹${revenue}`;
 
     const recentDiv = document.getElementById('recentAppointments');
-    const recent = currentAppointments.slice(0, 5);
+    const recent = currentAppointments.slice(0, 50); // Get more to show by doctor
     
     if (recent.length === 0) {
         recentDiv.innerHTML = '<p>No recent appointments</p>';
     } else {
-        recentDiv.innerHTML = `
-            <table class="appointments-table">
-                <thead>
-                    <tr>
-                        <th>Queue #</th>
-                        <th>Patient</th>
-                        <th>Doctor</th>
-                        <th>Date</th>
-                        <th>Status</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${recent.map(a => `
-                        <tr>
-                            <td>#${a.queueNumber}</td>
-                            <td>${a.patientName}</td>
-                            <td>${a.doctorName}</td>
-                            <td>${a.date}</td>
-                            <td><span class="badge ${a.status === 'confirmed' ? 'badge-success' : 'badge-warning'}">${a.status}</span></td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-            </table>
-        `;
+        // Group appointments by doctor
+        const groupedByDoctor = {};
+        recent.forEach(appt => {
+            if (!groupedByDoctor[appt.doctorName]) {
+                groupedByDoctor[appt.doctorName] = [];
+            }
+            groupedByDoctor[appt.doctorName].push(appt);
+        });
+
+        // Generate HTML with doctor headers and doctor-specific queue numbers
+        let html = '';
+        Object.entries(groupedByDoctor).forEach(([doctorName, appointments]) => {
+            html += `
+                <div class="doctor-section" style="margin-bottom: 30px;">
+                    <div class="doctor-section-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding: 15px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #2563eb;">
+                        <h3 style="margin: 0; color: #2563eb; font-size: 1.2em;">
+                            <i class="fas fa-user-md" style="margin-right: 8px;"></i>${doctorName}
+                        </h3>
+                        <div style="display: flex; gap: 10px;">
+                            <button class="btn btn-outline" onclick="viewDoctorPatients('${doctorName}')" 
+                                    style="padding: 8px 16px; font-size: 0.9em;">
+                                <i class="fas fa-users"></i> View Patients
+                            </button>
+                            <button class="btn btn-danger" onclick="deleteDoctoAppointments('${doctorName}')" 
+                                    style="padding: 8px 16px; font-size: 0.9em; background: #ef4444; color: white;">
+                                <i class="fas fa-trash"></i> Delete
+                            </button>
+                        </div>
+                    </div>
+                    <table class="appointments-table" style="margin-bottom: 20px;">
+                        <thead>
+                            <tr>
+                                <th>Queue #</th>
+                                <th>Patient</th>
+                                <th>Date</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${appointments.map((appt, index) => `
+                                <tr>
+                                    <td><strong>#${index + 1}</strong></td>
+                                    <td>${appt.patientName}</td>
+                                    <td>${appt.date}</td>
+                                    <td><span class="badge ${appt.status === 'confirmed' ? 'badge-success' : appt.status === 'completed' ? 'badge-info' : 'badge-warning'}">${appt.status}</span></td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        });
+        
+        recentDiv.innerHTML = html;
     }
 }
 
@@ -407,7 +437,7 @@ async function editDoctor(doctorId) {
 
     if (doctor.photo) {
         const preview = document.getElementById('photoPreview');
-        preview.src = doctor.photo ? 'http://localhost:5000' + doctor.photo : '';
+        preview.src = doctor.photo || '';
         preview.style.display = 'block';
     }
 
@@ -520,6 +550,52 @@ async function updateStatus(appointmentId, status) {
     } catch (error) {
         console.error('Error updating status:', error);
         alert('Failed to update status. Please try again.');
+    }
+}
+
+function viewDoctorPatients(doctorName) {
+    // Filter appointments for this specific doctor
+    const doctorAppointments = currentAppointments.filter(a => a.doctorName === doctorName);
+    
+    // Show an alert with patient count for this doctor
+    alert(`Dr. ${doctorName} has ${doctorAppointments.length} total appointments.\n\nRecent patients:\n${
+        doctorAppointments.slice(0, 5)
+            .map((a, i) => `${i + 1}. ${a.patientName} - ${a.date} (${a.status})`)
+            .join('\n')
+    }`);
+}
+
+async function deleteDoctoAppointments(doctorName) {
+    const doctorAppointments = currentAppointments.filter(a => a.doctorName === doctorName);
+    
+    if (!confirm(`Are you sure you want to delete all ${doctorAppointments.length} appointment(s) for Dr. ${doctorName}? This action cannot be undone.`)) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE}/appointments/doctor`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            },
+            body: JSON.stringify({ doctorName: doctorName })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to delete appointments');
+        }
+
+        const result = await response.json();
+        alert(`Successfully deleted ${result.deletedCount} appointment(s) for Dr. ${doctorName}`);
+        
+        // Reload the data to refresh the display
+        await loadAppointments();
+        await loadStats();
+    } catch (error) {
+        console.error('Error deleting appointments:', error);
+        alert('Failed to delete appointments: ' + error.message);
     }
 }
 

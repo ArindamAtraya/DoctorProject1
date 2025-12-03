@@ -39,6 +39,28 @@ const elements = {
     doctorsListContainer: document.getElementById('doctorsContainer')
 };
 
+// Export functions for global access IMMEDIATELY (before DOMContentLoaded)
+window.openBookingModal = openBookingModal;
+window.handleLogout = handleLogout;
+window.searchAll = searchAll;
+window.closeQueueInfo = closeQueueInfo;
+window.viewHospitalDoctors = viewHospitalDoctors;
+window.openSearchFilter = openSearchFilter;
+window.openLocationModal = openLocationModal;
+window.bookAppointmentFromSearch = bookAppointmentFromSearch;
+window.viewLocationDetails = viewLocationDetails;
+window.getDirections = getDirections;
+window.clearSearch = clearSearch;
+window.clearLocationSearch = clearLocationSearch;
+window.viewAllDoctors = viewAllDoctors;
+window.bookDoctorAppointment = bookDoctorAppointment;
+window.openDoctorAvailability = openDoctorAvailability;
+window.openBookingDashboard = openBookingDashboard;
+window.viewDoctorDetails = viewDoctorDetails;
+window.showNotification = showNotification;
+window.showModal = showModal;
+window.closeAllModals = closeAllModals;
+
 // Initialize Application
 document.addEventListener('DOMContentLoaded', function() {
     initializeApp();
@@ -391,7 +413,7 @@ function renderDoctors(doctorsList) {
 function createDoctorCard(doctor) {
     const card = document.createElement('div');
     card.className = 'card';
-    const photoUrl = doctor.photo ? 'http://localhost:5000' + doctor.photo : 'http://localhost:5000/uploads/default-doctor.png';
+    const photoUrl = doctor.photo ? doctor.photo : '/uploads/default-doctor.png';
     const availableSlots = doctor.availableSlots || [];
     const slotDisplay = Array.isArray(availableSlots) && availableSlots.length > 0 
         ? availableSlots.slice(0, 3).map(slot => {
@@ -753,25 +775,14 @@ async function findDoctorAvailability() {
     }
 
     try {
-        let searchDoctors = doctors;
+        // Build query parameters to search from backend
+        let queryParams = new URLSearchParams();
+        if (doctorName) queryParams.append('name', doctorName);
+        if (location) queryParams.append('location', location);
+        if (specialty) queryParams.append('specialty', specialty);
         
-        if (specialty) {
-            searchDoctors = searchDoctors.filter(doc => 
-                doc.specialty.toLowerCase().includes(specialty.toLowerCase())
-            );
-        }
-        
-        if (doctorName) {
-            searchDoctors = searchDoctors.filter(doc => 
-                doc.name.toLowerCase().includes(doctorName.toLowerCase())
-            );
-        }
-        
-        if (location) {
-            searchDoctors = searchDoctors.filter(doc => 
-                doc.hospital.toLowerCase().includes(location.toLowerCase())
-            );
-        }
+        // Fetch doctors from backend with filters
+        const searchDoctors = await apiCall(`/doctors?${queryParams.toString()}`);
         
         displayDoctorSearchResults(searchDoctors, { doctorName, location, specialty, date });
         closeAllModals();
@@ -902,7 +913,9 @@ function displayDoctorSearchResults(doctorsList, searchCriteria) {
     `;
 
     doctorsList.forEach(doctor => {
-        const photoUrl = doctor.photo ? 'http://localhost:5000' + doctor.photo : 'http://localhost:5000/uploads/default-doctor.png';
+        const photoUrl = doctor.photo ? doctor.photo : '/uploads/default-doctor.png';
+        const providerTypeLabel = doctor.providerType ? doctor.providerType.charAt(0).toUpperCase() + doctor.providerType.slice(1) : 'Healthcare Provider';
+        const providerIcon = doctor.providerType === 'hospital' ? 'fa-hospital' : (doctor.providerType === 'clinic' ? 'fa-clinic-medical' : 'fa-prescription-bottle-alt');
         html += `
             <div class="card">
                 <div class="card-img" style="background-image: url('${photoUrl}'); background-size: cover; background-position: center; height: 200px;">
@@ -912,17 +925,20 @@ function displayDoctorSearchResults(doctorsList, searchCriteria) {
                     <div class="card-header">
                         <div>
                             <div class="card-title">${doctor.name}</div>
-                            <div class="card-details">${doctor.specialty} · ${doctor.hospital}</div>
+                            <div class="card-details">${doctor.specialty}</div>
                         </div>
                         <div class="rating">⭐ ${doctor.rating || 4.5}</div>
                     </div>
                     <div class="card-details">
+                        <div><i class="fas ${providerIcon}"></i> <strong>${doctor.providerName || doctor.hospital}</strong> (${providerTypeLabel})</div>
+                        <div><i class="fas fa-map-marker-alt"></i> ${doctor.providerDistrict || 'N/A'}${doctor.providerState && doctor.providerState !== 'N/A' ? ', ' + doctor.providerState : ''}</div>
+                        ${doctor.providerAddress && doctor.providerAddress !== 'N/A' ? `<div><i class="fas fa-location-arrow"></i> ${doctor.providerAddress}</div>` : ''}
                         ${doctor.experience ? `<div><i class="fas fa-briefcase"></i> ${doctor.experience}</div>` : ''}
                         ${doctor.qualification ? `<div><i class="fas fa-graduation-cap"></i> ${doctor.qualification}</div>` : ''}
                     </div>
                     <div class="card-footer">
                         <div class="price">₹${doctor.consultationFee || doctor.fee || 500}</div>
-                        <button class="btn btn-primary" onclick="openDoctorAvailability('${doctor.id}')">
+                        <button class="btn btn-primary" onclick="openDoctorAvailability('${doctor.id || doctor._id}')">
                             <i class="fas fa-calendar-check"></i> Book Now
                         </button>
                     </div>
@@ -1130,10 +1146,18 @@ async function findHealthcareProviders() {
             return;
         }
 
-        // Filter providers by location (district match)
-        const filteredProviders = data.filter(provider => 
-            provider.district && provider.district.toLowerCase().includes(location.toLowerCase())
-        );
+        // Filter providers by location (district, state, or address match)
+        const filteredProviders = data.filter(provider => {
+            const locationLower = location.toLowerCase();
+            const provDistrict = (provider.providerDistrict || '').toLowerCase();
+            const provState = (provider.providerState || '').toLowerCase();
+            const provAddress = (provider.providerAddress || '').toLowerCase();
+            const provName = (provider.providerName || '').toLowerCase();
+            return provDistrict.includes(locationLower) || 
+                   provState.includes(locationLower) || 
+                   provAddress.includes(locationLower) ||
+                   provName.includes(locationLower);
+        });
 
         if (filteredProviders.length === 0) {
             showNotification(`No healthcare providers found in ${location}`, 'info');
@@ -1272,31 +1296,31 @@ function displayProvidersWithDoctors(providers, searchCriteria) {
     `;
 
     providers.forEach(provider => {
-        const typeIcon = getLocationTypeIcon(provider.type);
-        const typeColor = getLocationTypeColor(provider.type);
+        const typeIcon = getLocationTypeIcon(provider.providerType);
+        const typeColor = getLocationTypeColor(provider.providerType);
         
         html += `
             <div class="provider-card">
                 <div class="provider-header">
                     <div>
-                        <div class="provider-name">${provider.name}</div>
+                        <div class="provider-name">${provider.providerName}</div>
                         <div class="card-details" style="color: #666; font-size: 0.9rem;">
-                            <i class="fas fa-map-pin"></i> ${provider.district}
+                            <i class="fas fa-map-pin"></i> ${provider.providerDistrict}
                         </div>
                     </div>
                     <div class="provider-type" style="background: ${typeColor}">
-                        ${typeIcon} ${provider.type.toUpperCase()}
+                        ${typeIcon} ${provider.providerType.toUpperCase()}
                     </div>
                 </div>
                 
                 <div class="provider-info">
                     <div class="info-item">
                         <i class="fas fa-map-marker-alt"></i>
-                        ${provider.address || 'Address not available'}
+                        ${provider.providerAddress || 'Address not available'}
                     </div>
                     <div class="info-item">
                         <i class="fas fa-phone"></i>
-                        ${provider.phone || 'Phone not available'}
+                        ${provider.providerPhone || 'Phone not available'}
                     </div>
                     ${provider.rating ? `
                         <div class="info-item">
@@ -1331,8 +1355,8 @@ function displayProvidersWithDoctors(providers, searchCriteria) {
                 </div>
                 
                 <div style="margin-top: 15px; display: flex; gap: 10px; flex-wrap: wrap;">
-                    ${provider.address ? `
-                        <button class="btn btn-outline" onclick="getDirections('${provider.address}')">
+                    ${provider.providerAddress ? `
+                        <button class="btn btn-outline" onclick="getDirections('${provider.providerAddress}')">
                             <i class="fas fa-directions"></i> Get Directions
                         </button>
                     ` : ''}
@@ -1465,14 +1489,20 @@ function updateAuthUI() {
     const authButtons = document.querySelector('.auth-buttons');
     if (!authButtons) return;
     
-    if (currentUser) {
+    console.log('Current User:', currentUser);
+    console.log('Current User Role:', currentUser?.role);
+    
+    if (currentUser && currentUser.role) {
+        const isDashboardUser = currentUser.role !== 'patient';
+        const dashboardLink = isDashboardUser ? 'dashboard.html' : 'patient-dashboard.html';
+        const dashboardLabel = isDashboardUser ? 'Dashboard' : 'My Dashboard';
+        
         authButtons.innerHTML = `
             <span style="margin-right: 15px; font-weight: 600;">Hello, ${currentUser.name}</span>
             <button class="btn btn-outline" onclick="handleLogout()">Logout</button>
-            ${currentUser.role !== 'patient' ? 
-                `<button class="btn btn-primary" onclick="window.location.href='dashboard.html'">Dashboard</button>` : 
-                `<button class="btn btn-primary" onclick="window.location.href='patient-dashboard.html'">My Dashboard</button>`
-            }
+            <button class="btn btn-primary" onclick="window.location.href='${dashboardLink}'">
+                <i class="fas fa-chart-line"></i> ${dashboardLabel}
+            </button>
         `;
     } else {
         authButtons.innerHTML = `
@@ -1480,10 +1510,12 @@ function updateAuthUI() {
             <button class="btn btn-primary" id="signupBtn">Sign Up</button>
         `;
         // Re-attach event listeners
-        const loginBtn = document.getElementById('loginBtn');
-        const signupBtn = document.getElementById('signupBtn');
-        if (loginBtn) loginBtn.addEventListener('click', () => showModal('loginModal'));
-        if (signupBtn) signupBtn.addEventListener('click', () => showModal('signupModal'));
+        setTimeout(() => {
+            const loginBtn = document.getElementById('loginBtn');
+            const signupBtn = document.getElementById('signupBtn');
+            if (loginBtn) loginBtn.addEventListener('click', () => showModal('loginModal'));
+            if (signupBtn) signupBtn.addEventListener('click', () => showModal('signupModal'));
+        }, 100);
     }
 }
 
@@ -1664,24 +1696,3 @@ function loadMockTests() {
     renderTests(tests);
 }
 
-// Export functions for global access
-window.openBookingModal = openBookingModal;
-window.handleLogout = handleLogout;
-window.searchAll = searchAll;
-window.closeQueueInfo = closeQueueInfo;
-window.viewHospitalDoctors = viewHospitalDoctors;
-window.openSearchFilter = openSearchFilter;
-window.openLocationModal = openLocationModal;
-window.bookAppointmentFromSearch = bookAppointmentFromSearch;
-window.viewLocationDetails = viewLocationDetails;
-window.getDirections = getDirections;
-window.clearSearch = clearSearch;
-window.clearLocationSearch = clearLocationSearch;
-window.viewAllDoctors = viewAllDoctors;
-window.bookDoctorAppointment = bookDoctorAppointment;
-window.openDoctorAvailability = openDoctorAvailability;
-window.openBookingDashboard = openBookingDashboard;
-window.viewDoctorDetails = viewDoctorDetails;
-window.showNotification = showNotification;
-window.showModal = showModal;
-window.closeAllModals = closeAllModals;
