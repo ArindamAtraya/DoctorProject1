@@ -95,31 +95,38 @@ async function initializeDoctorAvailability() {
             const providerState = currentDoctor.providerState || '';
             const providerAddress = currentDoctor.providerAddress || 'N/A';
             
-            // Set provider name and type
-            document.getElementById('providerName').textContent = providerName;
-            document.getElementById('providerType').textContent = ` (${providerTypeLabel})`;
+            // Set provider name and type (with null checks)
+            const providerNameEl = document.getElementById('providerName');
+            const providerTypeEl = document.getElementById('providerType');
+            if (providerNameEl) providerNameEl.textContent = providerName;
+            if (providerTypeEl) providerTypeEl.textContent = ` (${providerTypeLabel})`;
             
             // Set provider icon based on type
             const providerIconEl = document.getElementById('providerIcon');
-            if (providerType === 'hospital') {
-                providerIconEl.className = 'fas fa-hospital';
-            } else if (providerType === 'clinic') {
-                providerIconEl.className = 'fas fa-clinic-medical';
-            } else {
-                providerIconEl.className = 'fas fa-prescription-bottle-alt';
+            if (providerIconEl) {
+                if (providerType === 'hospital') {
+                    providerIconEl.className = 'fas fa-hospital';
+                } else if (providerType === 'clinic') {
+                    providerIconEl.className = 'fas fa-clinic-medical';
+                } else {
+                    providerIconEl.className = 'fas fa-prescription-bottle-alt';
+                }
             }
             
             // Set location with district and state
             const locationText = providerState && providerState !== 'N/A' ? 
                 `${providerDistrict}, ${providerState}` : providerDistrict;
-            document.getElementById('providerDistrict').textContent = locationText;
+            const providerDistrictEl = document.getElementById('providerDistrict');
+            if (providerDistrictEl) providerDistrictEl.textContent = locationText;
             
             // Set address
-            document.getElementById('providerAddress').textContent = providerAddress;
+            const providerAddressEl = document.getElementById('providerAddress');
+            if (providerAddressEl) providerAddressEl.textContent = providerAddress;
             
             // Hide address section if not available
-            if (providerAddress === 'N/A' || !providerAddress) {
-                document.getElementById('doctorAddress').style.display = 'none';
+            const doctorAddressEl = document.getElementById('doctorAddress');
+            if (doctorAddressEl && (providerAddress === 'N/A' || !providerAddress)) {
+                doctorAddressEl.style.display = 'none';
             }
             
             document.getElementById('doctorRating').textContent = currentDoctor.rating || '4.5';
@@ -147,24 +154,39 @@ function generateCalendar() {
     const startOfWeek = new Date(currentDate);
     startOfWeek.setDate(currentDate.getDate() - currentDate.getDay());
     
+    // Get today's date (without time) for comparison
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
     // Generate 7 days for the week
     for (let i = 0; i < 7; i++) {
         const dayDate = new Date(startOfWeek);
         dayDate.setDate(startOfWeek.getDate() + i);
+        dayDate.setHours(0, 0, 0, 0);
         
         const dayElement = document.createElement('div');
         dayElement.className = 'calendar-day';
         
+        // Check if this day is in the past (disable it)
+        const isPastDate = dayDate < today;
+        if (isPastDate) {
+            dayElement.classList.add('disabled');
+            dayElement.style.opacity = '0.4';
+            dayElement.style.cursor = 'not-allowed';
+            dayElement.style.pointerEvents = 'none';
+        }
+        
         // Check if this day is today
-        const today = new Date();
         if (dayDate.toDateString() === today.toDateString()) {
             dayElement.classList.add('active');
         }
         
-        // Check if this day has available slots (mock logic)
-        const hasAvailability = Math.random() > 0.3; // 70% chance of availability
-        if (hasAvailability) {
-            dayElement.classList.add('available');
+        // Check if this day has available slots (only for future dates)
+        if (!isPastDate) {
+            const hasAvailability = Math.random() > 0.3; // 70% chance of availability
+            if (hasAvailability) {
+                dayElement.classList.add('available');
+            }
         }
         
         // Add date number
@@ -186,11 +208,14 @@ function generateCalendar() {
         
         dayElement.setAttribute('data-date', dayDate.toISOString().split('T')[0]);
         
-        dayElement.addEventListener('click', function() {
-            if (!isLoading) {
-                selectDate(this.getAttribute('data-date'));
-            }
-        });
+        // Only add click handler for non-past dates
+        if (!isPastDate) {
+            dayElement.addEventListener('click', function() {
+                if (!isLoading) {
+                    selectDate(this.getAttribute('data-date'));
+                }
+            });
+        }
         
         calendarGrid.appendChild(dayElement);
     }
@@ -242,6 +267,17 @@ function nextWeek() {
 
 function selectDate(dateString) {
     if (isLoading) return;
+    
+    // Prevent selecting past dates
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const dateToSelect = new Date(dateString);
+    dateToSelect.setHours(0, 0, 0, 0);
+    
+    if (dateToSelect < today) {
+        showNotification('Cannot select past dates. Please choose today or a future date.', 'error');
+        return;
+    }
     
     selectedDate = new Date(dateString);
     
@@ -511,6 +547,17 @@ async function confirmBooking() {
         return;
     }
     
+    // Prevent booking past dates (extra validation)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const bookingDate = new Date(selectedDate);
+    bookingDate.setHours(0, 0, 0, 0);
+    
+    if (bookingDate < today) {
+        showNotification('Cannot book appointments for past dates. Please select today or a future date.', 'error');
+        return;
+    }
+    
     // Check if user is logged in
     const token = localStorage.getItem('authToken') || localStorage.getItem('token');
     if (!token) {
@@ -563,8 +610,10 @@ async function confirmBooking() {
         // Store appointment data in localStorage (more reliable than sessionStorage)
         const bookingData = {
             id: appointmentId,
+            doctorId: currentDoctor._id || currentDoctor.id,
+            providerId: currentDoctor.providerId,
             doctorName: result.appointment.doctorName || currentDoctor.name,
-            providerName: result.appointment.providerName || currentDoctor.hospital,
+            providerName: result.appointment.providerName || currentDoctor.hospital || currentDoctor.providerName,
             specialty: result.appointment.specialty || currentDoctor.specialty,
             date: result.appointment.date,
             time: result.appointment.time,

@@ -266,24 +266,24 @@
                     </div>
                 </div>
 
-                <!-- Pharmacy Information -->
+                <!-- Provider/Pharmacy Information -->
                 <div class="pharmacy-info">
-                    <h3><i class="fas fa-prescription-bottle"></i> Pharmacy Information</h3>
+                    <h3><i class="fas fa-hospital" id="providerIcon"></i> <span id="providerSectionTitle">Provider Information</span></h3>
                     <div class="detail-row">
-                        <span class="detail-label">Pharmacy:</span>
-                        <span class="detail-value">Apollo Pharmacy</span>
+                        <span class="detail-label" id="providerTypeLabel">Provider:</span>
+                        <span class="detail-value" id="dashboardProviderName">Loading...</span>
                     </div>
                     <div class="detail-row">
                         <span class="detail-label">Location:</span>
-                        <span class="detail-value">Ground Floor, Apollo Hospital</span>
+                        <span class="detail-value" id="dashboardProviderLocation">Loading...</span>
                     </div>
                     <div class="detail-row">
                         <span class="detail-label">Contact:</span>
-                        <span class="detail-value">+1 234-567-8900</span>
+                        <span class="detail-value" id="dashboardProviderContact">Loading...</span>
                     </div>
                     <div class="detail-row">
                         <span class="detail-label">Timings:</span>
-                        <span class="detail-value">8:00 AM - 10:00 PM</span>
+                        <span class="detail-value" id="dashboardProviderTimings">Loading...</span>
                     </div>
                     <button class="btn btn-outline" style="width: 100%; margin-top: 15px;" onclick="getPharmacyDirections()">
                         <i class="fas fa-directions"></i> Get Directions

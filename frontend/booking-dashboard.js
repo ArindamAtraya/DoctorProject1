@@ -1,5 +1,6 @@
 const API_BASE = 'http://localhost:5000/api';
 
+
 console.log('📱 booking-dashboard.js STARTING');
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -20,7 +21,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }, 100);
 });
 
-function loadAndDisplayBooking() {
+async function loadAndDisplayBooking() {
     console.log('\n🚀 LOADING BOOKING DATA');
     console.log('================================');
     
@@ -46,11 +47,12 @@ function loadAndDisplayBooking() {
         console.log('  - Provider:', booking.providerName);
         console.log('  - Date:', booking.date);
         console.log('  - Time:', booking.time);
-        console.log('  - Queue:', booking.queueNumber);
+        console.log('  - DoctorId:', booking.doctorId);
+        console.log('  - ProviderId:', booking.providerId);
         console.log('  - Fee:', booking.consultationFee);
         
-        // Validate all required fields
-        const required = ['doctorName', 'providerName', 'date', 'time', 'queueNumber', 'consultationFee'];
+        // Validate required fields
+        const required = ['doctorName', 'providerName', 'date', 'time', 'consultationFee'];
         for (let field of required) {
             if (!booking[field] && booking[field] !== 0) {
                 throw new Error(`Missing required field: ${field}`);
@@ -58,7 +60,13 @@ function loadAndDisplayBooking() {
         }
         
         console.log('✅ All validation checks passed');
+        
+        // Display basic booking info first
         displayBooking(booking);
+        
+        // Then fetch and display provider info and correct queue number
+        await fetchAndDisplayProviderInfo(booking);
+        await fetchAndDisplayQueueInfo(booking);
         
     } catch (error) {
         console.error('❌ ERROR:', error.message);
@@ -82,17 +90,204 @@ function displayBooking(booking) {
         updateElement('dashboardBookingId', booking.id || 'N/A');
         updateElement('dashboardPatientName', 'You');
         updateElement('dashboardPatientId', 'N/A');
-        updateElement('dashboardQueuePosition', `#${booking.queueNumber}`);
-        updateElement('dashboardWaitTime', '0 minutes');
-        updateElement('dashboardEstimatedTime', booking.time);
         
-        console.log('✅ ALL DASHBOARD ELEMENTS UPDATED');
+        // Set booking time
+        const now = new Date();
+        updateElement('dashboardBookingTime', now.toLocaleString('en-US', {
+            weekday: 'long',
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true
+        }).replace(/,/, ','));
+        
+        console.log('✅ BASIC DASHBOARD ELEMENTS UPDATED');
         
     } catch (error) {
         console.error('❌ ERROR displaying booking:', error.message);
         console.error('Stack:', error.stack);
-        showErrorAndRedirect('Error displaying booking: ' + error.message);
     }
+}
+
+async function fetchAndDisplayProviderInfo(booking) {
+    try {
+        console.log('\n🏥 FETCHING PROVIDER INFO');
+        console.log('================================');
+        
+        const providerId = booking.providerId;
+        
+        if (!providerId) {
+            console.log('⚠️ No providerId in booking, using fallback');
+            displayFallbackProviderInfo(booking);
+            return;
+        }
+        
+        const response = await fetch(`${API_BASE}/healthcare-providers/${providerId}`);
+        
+        if (!response.ok) {
+            console.log('⚠️ Provider fetch failed, using fallback');
+            displayFallbackProviderInfo(booking);
+            return;
+        }
+        
+        const provider = await response.json();
+        console.log('✅ Provider data:', provider);
+        
+        // Update provider section title and icon based on type
+        const providerType = provider.type || 'hospital';
+        const typeLabels = {
+            'hospital': 'Hospital Information',
+            'clinic': 'Clinic Information',
+            'pharmacy': 'Pharmacy Information'
+        };
+        const typeIcons = {
+            'hospital': 'fa-hospital',
+            'clinic': 'fa-clinic-medical',
+            'pharmacy': 'fa-prescription-bottle-alt'
+        };
+        
+        updateElement('providerSectionTitle', typeLabels[providerType] || 'Provider Information');
+        
+        const iconEl = document.getElementById('providerIcon');
+        if (iconEl) {
+            iconEl.className = `fas ${typeIcons[providerType] || 'fa-hospital'}`;
+        }
+        
+        updateElement('providerTypeLabel', providerType.charAt(0).toUpperCase() + providerType.slice(1) + ':');
+        updateElement('dashboardProviderName', provider.name || booking.providerName);
+        
+        // Build location string
+        let location = provider.address || '';
+        if (provider.district) {
+            location = location ? `${location}, ${provider.district}` : provider.district;
+        }
+        if (provider.state) {
+            location = location ? `${location}, ${provider.state}` : provider.state;
+        }
+        updateElement('dashboardProviderLocation', location || 'N/A');
+        
+        updateElement('dashboardProviderContact', provider.phone || provider.contact || 'N/A');
+        
+        // Build timings string from operatingHours if available
+        let timings = 'N/A';
+        if (provider.operatingHours) {
+            const hours = provider.operatingHours;
+            if (hours.open && hours.close) {
+                timings = `${hours.open} - ${hours.close}`;
+            }
+        } else if (provider.timings) {
+            timings = provider.timings;
+        }
+        updateElement('dashboardProviderTimings', timings);
+        
+        // Store provider address for directions
+        window.currentProviderAddress = provider.address || provider.name;
+        
+        console.log('✅ PROVIDER INFO UPDATED');
+        
+    } catch (error) {
+        console.error('❌ Error fetching provider info:', error);
+        displayFallbackProviderInfo(booking);
+    }
+}
+
+function displayFallbackProviderInfo(booking) {
+    console.log('📋 Using fallback provider info');
+    
+    updateElement('providerSectionTitle', 'Provider Information');
+    updateElement('providerTypeLabel', 'Provider:');
+    updateElement('dashboardProviderName', booking.providerName || 'N/A');
+    updateElement('dashboardProviderLocation', 'N/A');
+    updateElement('dashboardProviderContact', 'N/A');
+    updateElement('dashboardProviderTimings', 'N/A');
+}
+
+async function fetchAndDisplayQueueInfo(booking) {
+    try {
+        console.log('\n📊 FETCHING QUEUE INFO');
+        console.log('================================');
+        
+        const doctorId = booking.doctorId;
+        const date = booking.date;
+        const time = booking.time;
+        
+        if (!doctorId || !date || !time) {
+            console.log('⚠️ Missing doctorId, date, or time - using booking queue number');
+            displayQueueInfo(booking.queueNumber || 1);
+            return;
+        }
+        
+        // Fetch appointments for this doctor on this date and time
+        const response = await fetch(`${API_BASE}/doctor-appointments/${doctorId}?date=${date}`);
+        
+        if (!response.ok) {
+            console.log('⚠️ Appointments fetch failed, using booking queue number');
+            displayQueueInfo(booking.queueNumber || 1);
+            return;
+        }
+        
+        const appointments = await response.json();
+        console.log('✅ Appointments data:', appointments);
+        
+        // Count appointments for this specific time slot to get queue position
+        const appointmentsForTimeSlot = appointments.filter(apt => apt.time === time);
+        
+        // Find this booking's position in the queue for this time slot
+        let queuePosition = 1;
+        const bookingId = booking.id;
+        
+        if (bookingId) {
+            // Find this appointment's queue position among same time slot appointments
+            const sortedAppts = appointmentsForTimeSlot.sort((a, b) => a.queueNumber - b.queueNumber);
+            const myAppt = sortedAppts.find(apt => apt._id === bookingId);
+            if (myAppt) {
+                queuePosition = sortedAppts.indexOf(myAppt) + 1;
+            } else {
+                // If not found, assume we're the newest (last in queue)
+                queuePosition = appointmentsForTimeSlot.length;
+            }
+        } else {
+            // If no booking ID, count all appointments for this time slot
+            queuePosition = appointmentsForTimeSlot.length;
+        }
+        
+        // Ensure at least position 1
+        if (queuePosition < 1) queuePosition = 1;
+        
+        console.log(`✅ Queue position for time ${time}: #${queuePosition} (${appointmentsForTimeSlot.length} total for this slot)`);
+        
+        displayQueueInfo(queuePosition, time);
+        
+    } catch (error) {
+        console.error('❌ Error fetching queue info:', error);
+        displayQueueInfo(booking.queueNumber || 1);
+    }
+}
+
+function displayQueueInfo(queuePosition, time) {
+    const patientsBefore = queuePosition - 1;
+    const estimatedWait = patientsBefore * 15; // 15 minutes per patient
+    
+    updateElement('dashboardQueuePosition', `#${queuePosition}`);
+    updateElement('dashboardWaitTime', `${estimatedWait} minutes`);
+    
+    // Calculate estimated time if we have the appointment time
+    if (time) {
+        const [hours, minutes] = time.split(':').map(Number);
+        const estimatedDate = new Date();
+        estimatedDate.setHours(hours, minutes || 0, 0, 0);
+        estimatedDate.setMinutes(estimatedDate.getMinutes() + estimatedWait);
+        
+        const estimatedTimeStr = estimatedDate.toLocaleTimeString('en-US', { 
+            hour: 'numeric', 
+            minute: '2-digit',
+            hour12: true 
+        });
+        updateElement('dashboardEstimatedTime', estimatedTimeStr);
+    } else {
+        updateElement('dashboardEstimatedTime', 'N/A');
+    }
+    
+    console.log(`✅ Queue info displayed: #${queuePosition}, wait: ${estimatedWait} min`);
 }
 
 function updateElement(id, value) {
@@ -194,6 +389,8 @@ function downloadTicket() {
     
     try {
         const booking = JSON.parse(bookingJSON);
+        const queuePosition = document.getElementById('dashboardQueuePosition')?.textContent || '#1';
+        
         const ticketHTML = `
             <!DOCTYPE html>
             <html>
@@ -285,7 +482,7 @@ function downloadTicket() {
                         </div>
                         <div class="row">
                             <span class="label">Queue Position:</span>
-                            <strong class="value">#${booking.queueNumber}</strong>
+                            <strong class="value">${queuePosition}</strong>
                         </div>
                     </div>
                     
@@ -319,7 +516,13 @@ function downloadTicket() {
 
 function getPharmacyDirections() {
     console.log('🗺️ Opening maps');
-    window.open('https://www.google.com/maps', '_blank');
+    const address = window.currentProviderAddress || '';
+    if (address) {
+        const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+        window.open(mapsUrl, '_blank');
+    } else {
+        window.open('https://www.google.com/maps', '_blank');
+    }
 }
 
 function addNotes() {

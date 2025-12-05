@@ -652,6 +652,16 @@ app.post('/api/appointments', authenticateToken, async (req, res) => {
         try {
             const { doctorId, date, time, notes } = req.body;
 
+            // Prevent back-date bookings
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const bookingDate = new Date(date);
+            bookingDate.setHours(0, 0, 0, 0);
+            
+            if (bookingDate < today) {
+                return res.status(400).json({ error: 'Cannot book appointments for past dates. Please select today or a future date.' });
+            }
+
             const doctor = await Doctor.findById(doctorId).populate('providerId');
             if (!doctor) {
                 return res.status(404).json({ error: 'Doctor not found' });
@@ -665,8 +675,9 @@ app.post('/api/appointments', authenticateToken, async (req, res) => {
             const maxQueueResult = await Appointment.aggregate([
                 {
                     $match: {
-                        providerId: doctor.providerId._id,
-                        date: date
+                        doctorId: doctor._id,
+                        date: date,
+                        time: time
                     }
                 },
                 {
